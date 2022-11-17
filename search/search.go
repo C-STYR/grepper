@@ -4,10 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
-
-	"grepper/tasklist"
 )
 
 // structure for storing result values
@@ -56,24 +53,4 @@ func SearchByLine(filepath string, searchTerm string) Results {
 		return results
 	}
 	return nil
-}
-
-func GatherFilenames(path string, tl *tasklist.Tasklist) {
-
-	files, err := os.ReadDir(path)
-	if err != nil {
-		fmt.Println("ReadDir error:", err)
-		return
-	}
-	// files is of type []DirEntry and must be parsed for readability
-	for _, file := range files {
-
-		// check if file is a dir or file
-		if file.IsDir() {
-			innerDir := filepath.Join(path, file.Name())
-			GatherFilenames(innerDir, tl)
-		} else {
-			tl.Enqueue(tasklist.CreateTask(filepath.Join(path, file.Name())))
-		}
-	}
 }
