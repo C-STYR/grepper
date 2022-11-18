@@ -28,7 +28,7 @@ func GatherFilenames(path string, tl *Tasklist, wg *sync.WaitGroup) {
 		// check if file is a dir or file
 		if file.IsDir() {
 			innerDir := filepath.Join(path, file.Name())
-			GatherFilenames(innerDir, tl)
+			GatherFilenames(innerDir, tl, &GFwg)
 		} else {
 			// add the filepath to the tasklist
 			tl.Enqueue(CreateTask(filepath.Join(path, file.Name())))

@@ -2,6 +2,7 @@ package main
 
 import (
 	"sync"
+	"fmt"
 	
 	"grepper/buildTree"
 	"grepper/tasklist"
@@ -53,9 +54,9 @@ func main() {
 		// once recursive process is done...
 		buildTree.GFwg.Wait() 
 
-		// close the TaskList
-		close(tl)
-	}
+		// close the TaskList - it's a struct and can't be closed...
+		// close(tl)
+	}()
 
 	for i := 0; i < searchParty; i++ {
 		
@@ -67,34 +68,32 @@ func main() {
 
 			// start search loop
 			for {
-				select {
 				
 				// if there are tasks in the tasklist channel...
-				case task := <-tl:
+					task := tl.Dequeue()
 
 					// parse them
-					seachResult := search.SearchByLine(task, args.SearchTerm)
+					searchResult := search.SearchByLine(string(task), args.SearchTerm)
 
 					// if there's a string match...
 					if searchResult != nil {
-
+						fmt.Println("found a result")
 						// loop through and send to results channel
 						for _, r := range searchResult {
 							results <- r
 						}
 					}
 
-				// if there aren't any tasks in the tasklist...
-				default:
+				// // if there aren't any tasks in the tasklist...
+				// default:
 					
-					//wait for searchers to finish
-					searchWg.Wait()
+				// 	//wait for searchers to finish
+				// 	searchWg.Wait()
 
-					// then close the results channel
-					close(results)
-				}
+				// 	// then close the results channel
+				// 	close(results)
 			}
-		}
+		}()
 	}
 
 	var displayWg sync.WaitGroup
@@ -106,15 +105,12 @@ func main() {
 
 			//print results as they come in
 			case r := <-results: 
-				fmt.Printf("%v[%v]:%v\n", r.Path, r.LineNum, r.Line)
+				fmt.Printf("%v[%v]:%v\n", r.Path, r.LineNumber, r.Line)
 			
-			//will always succeed once channel is closed
-			case <-blockWorkersWg: 
-				// possibility that results are in the channel but haven't been printed, so check first
-				if len(results) == 0 { 
-					displayWg.Done() //end waitgroup
-					return
-				}
+			default: 
+			fmt.Println("hit default case")
+			displayWg.Done()
+			return
 			}
 		}
 	}()
