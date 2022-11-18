@@ -4,14 +4,19 @@ import (
 	"os"
 	"fmt"
 	"path/filepath"
+	"sync"
 
 	. "grepper/tasklist"
 )
 
 // should build and recursively traverse nested paths of the dir/file supplied
 
-func GatherFilenames(path string, tl *Tasklist) {
+var GFwg sync.WaitGroup
 
+func GatherFilenames(path string, tl *Tasklist, wg *sync.WaitGroup) {
+
+	wg.Add(1)
+	defer wg.Done()
 	files, err := os.ReadDir(path)
 	if err != nil {
 		fmt.Println("ReadDir error:", err)

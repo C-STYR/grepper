@@ -17,6 +17,14 @@ var args struct {
 
 func main() {
 
+	/*
+		Two main goroutines will be running here:
+		1. building the tree (compiling list of filenames and adding to tasklist)
+		2. checking files for string matches
+	
+		
+	*/
+
 	// command line validation tool
 	arg.MustParse(&args)
 
@@ -30,13 +38,85 @@ func main() {
 	results := make(chan search.Result, 100)
 
 	// define number of concurrent searchroutines
-	searchRoutines := 10
+	searchParty := 10
 
 	searchWg.Add(1)
 
 	// NEED METHOD OF STOPPING SEARCH WHEN END OF TASKLIST REACHED
+	// check if channel is open? 
+	// add a dummy task (like kanban)
 
+	go func() {
+		// in a goroutine, gather filenames to be parsed and send down tl channel
+		buildTree.GatherFilenames(".", &tl, &buildTree.GFwg) 
 
+		// once recursive process is done...
+		buildTree.GFwg.Wait() 
 
-	buildTree.GatherFilenames(".", &tl)
+		// close the TaskList
+		close(tl)
+	}
+
+	for i := 0; i < searchParty; i++ {
+		
+		// increment searchers wg for each member of search parth
+		searchWg.Add(1)
+
+		go func() {
+			defer searchWg.Done() //schedule cancellation of waitgroup
+
+			// start search loop
+			for {
+				select {
+				
+				// if there are tasks in the tasklist channel...
+				case task := <-tl:
+
+					// parse them
+					seachResult := search.SearchByLine(task, args.SearchTerm)
+
+					// if there's a string match...
+					if searchResult != nil {
+
+						// loop through and send to results channel
+						for _, r := range searchResult {
+							results <- r
+						}
+					}
+
+				// if there aren't any tasks in the tasklist...
+				default:
+					
+					//wait for searchers to finish
+					searchWg.Wait()
+
+					// then close the results channel
+					close(results)
+				}
+			}
+		}
+	}
+
+	var displayWg sync.WaitGroup
+
+	displayWg.Add(1)
+	go func() {
+		for {
+			select {
+
+			//print results as they come in
+			case r := <-results: 
+				fmt.Printf("%v[%v]:%v\n", r.Path, r.LineNum, r.Line)
+			
+			//will always succeed once channel is closed
+			case <-blockWorkersWg: 
+				// possibility that results are in the channel but haven't been printed, so check first
+				if len(results) == 0 { 
+					displayWg.Done() //end waitgroup
+					return
+				}
+			}
+		}
+	}()
+	displayWg.Wait() //block until all complete
 }
