@@ -1,5 +1,7 @@
 package tasklist
 
+import "fmt"
+
 /*
 	This package will house the tasklist structure and provide a number of
 	methods for it.
@@ -25,9 +27,15 @@ func (t *Tasklist) Enqueue(task Task) {
 }
 
 // grab the next task in line from the TL
-func (t *Tasklist) Dequeue() Task{
+func (t *Tasklist) Dequeue() Task {
 	next := <-t.tasks
 	return next
+}
+
+func (t *Tasklist) PrintTasks() {
+	for e := range t.tasks {
+		fmt.Println(e)
+	}
 }
 
 // create a buffered TL
