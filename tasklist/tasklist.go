@@ -10,7 +10,7 @@ import "fmt"
 
 // channel for tasks
 type Tasklist struct {
-	tasks chan Task
+	Tasks chan Task
 }
 
 // filepaths
@@ -23,17 +23,17 @@ func CreateTask(path string) Task {
 
 // add a task to the TL
 func (t *Tasklist) Enqueue(task Task) {
-	t.tasks <- task
+	t.Tasks <- task
 }
 
 // grab the next task in line from the TL
 func (t *Tasklist) Dequeue() Task {
-	next := <-t.tasks
+	next := <-t.Tasks
 	return next
 }
 
 func (t *Tasklist) PrintTasks() {
-	for e := range t.tasks {
+	for e := range t.Tasks {
 		fmt.Println(e)
 	}
 }
