@@ -79,6 +79,9 @@ func main() {
 		gatherFilenamesComplete <- 1
 	}()
 
+	// MAIN THREAD
+	// spawns a search routine for each member of search party
+	// each routine continues to take tasks until no tasks are left
 	for i := 0; i < searchParty; i++ {
 
 		searchLinesWG.Add(1)
@@ -86,7 +89,7 @@ func main() {
 		go func() {
 			defer searchLinesWG.Done()
 
-			// SearchLoop:
+			SearchLoop:
 			for {
 
 				// if there are tasks in the tasklist channel...
@@ -104,16 +107,21 @@ func main() {
 				} else {
 					fmt.Println("No hits in file", task)
 				}
+
+				// this needs to be tested
+				result := <-gatherFilenamesComplete 
+				
+				if result == 1 && len(tl.Tasks) == 0{
+					break SearchLoop
+				}
 			}
 		}()
 	}
 
-	fmt.Println("****** Exited SearchLoop, Resuming Main Thread ******")
-
 	go func() {
 		searchLinesWG.Wait()
 		fmt.Println("***** searchLinesWG DONE: Sending Display Quit Message *****")
-		displayResultsComplete <- 1
+		searchLinesComplete <- 1
 	}()
 
 	displayResultsWG.Add(1)
