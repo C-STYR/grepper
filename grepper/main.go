@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"grepper/buildTree"
 	"grepper/search"
@@ -30,76 +29,94 @@ func main() {
 	// command line validation tool
 	arg.MustParse(&args)
 
-	// waitgroup for search goroutines
-	var searchWg sync.WaitGroup
-	var GFwg sync.WaitGroup
+	// WAITGROUPS
+	var gatherFilenamesWG sync.WaitGroup
+	var searchLinesWG sync.WaitGroup
+	var displayResultsWG sync.WaitGroup
+	var masterWG sync.WaitGroup
+
+	gatherFilenamesWG.Add(1)
+	searchLinesWG.Add(1)
+	displayResultsWG.Add(1)
+	masterWG.Add(2) // one for each remaining waitgroup
 
 	// tasklist with cap 100
 	tl := tasklist.CreateTLChannel(100)
 
-	// searches are returned here
+	// CHANNELS
 	results := make(chan search.Result, 100)
-	quit := make(chan int, 1)
+	gatherFilenamesComplete := make(chan int, 1)
+	searchLinesComplete := make(chan int, 1)
+	displayResultsComplete := make(chan int, 1)
+
+	// master waitgroup goroutine
+	go func() {
+		for {
+			select {
+			case <-searchLinesComplete:
+				masterWG.Done()
+			case <-displayResultsComplete:
+				masterWG.Done()
+			}
+		}
+	}()
 
 	// define number of concurrent searchroutines
 	searchParty := 10
 
-	searchWg.Add(1)
-
-// BuildTreeRoutine:
+	// Compile filenames from the file tree
 	go func() {
 		fmt.Println("treebuilding goroutine spawned")
+
 		// in a goroutine, gather filenames to be parsed and send down tl channel
-		buildTree.GatherFilenames(".", &tl, &GFwg)
+		buildTree.GatherFilenames(".", &tl, &gatherFilenamesWG)
 
 		// once recursive process is done...
-		GFwg.Wait() // this is blocking
+		gatherFilenamesWG.Wait() // this is blocking
 		fmt.Println("treebuilding goroutine complete")
 
-		searchWg.Done()
-
 		// send quit message
-		quit <- 1
+		gatherFilenamesComplete <- 1
 	}()
 
-	time.Sleep(1 * time.Second)
 	for i := 0; i < searchParty; i++ {
 
-		// increment searchers wg for each member of search party
-		searchWg.Add(1)
+		searchLinesWG.Add(1)
 
 		go func() {
-			defer searchWg.Done() // schedule decrementation of waitgroup
+			defer searchLinesWG.Done()
 
-		SearchLoop:
+			// SearchLoop:
 			for {
-				select {
+
 				// if there are tasks in the tasklist channel...
-				case task := <-tl.Tasks:
-					fmt.Println("this is a task:", task)
+				task := tl.Dequeue()
 
-					// parse them
-					searchResult := search.SearchByLine(string(task), args.SearchTerm)
+				// parse them
+				searchResult := search.SearchByLine(string(task), args.SearchTerm)
 
-					// if there's a string match...
-					if searchResult != nil {
-						fmt.Println("found a result")
-						// loop through and send to results channel
-						for _, r := range searchResult {
-							fmt.Println("r:", r)
-							results <- r
-						}
+				// if there's a string match...
+				if searchResult != nil {
+					// loop through and send to results channel
+					for _, r := range searchResult {
+						results <- r
 					}
-				case <-quit:
-					break SearchLoop
+				} else {
+					fmt.Println("No hits in file", task)
 				}
 			}
 		}()
 	}
 
-	var displayWg sync.WaitGroup
+	fmt.Println("****** Exited SearchLoop, Resuming Main Thread ******")
 
-	displayWg.Add(1)
+	go func() {
+		searchLinesWG.Wait()
+		fmt.Println("***** searchLinesWG DONE: Sending Display Quit Message *****")
+		displayResultsComplete <- 1
+	}()
+
+	displayResultsWG.Add(1)
 	go func() {
 		for {
 			select {
@@ -107,23 +124,19 @@ func main() {
 			//print results as they come in
 			case r := <-results:
 				fmt.Printf("%v[%v]:%v\n", r.Path, r.LineNumber, r.Line)
-			
-			
-			default:
-				fmt.Println("hit default case")
+
+			case <-displayResultsComplete:
 				if len(results) == 0 {
-					fmt.Println("no results brah")
-					displayWg.Done()
+					fmt.Println("*********** received display quit signal *************")
+					displayResultsWG.Done()
 					return
 				} else {
-					fmt.Println("something ain't right")
+					continue
 				}
 			}
 		}
 	}()
-	displayWg.Wait() //block until all complete
-	// time.Sleep(1 * time.Second)
-	GFwg.Wait()
+	displayResultsWG.Wait() //block until all complete
 	fmt.Println("waiting complete")
 
 	// currently main is completing before all the goroutines are.
