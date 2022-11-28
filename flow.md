@@ -11,19 +11,20 @@
 
 #### `main.go`
 
- 1. establish a master goroutine for waitgroups - it will receive from channels tied to all processes
+ 1. establish a master WG - it will wait for 3 main processes to complete
 
- 2. in a GR, start the recursive treebuilding in `buildTree.go`, and add to wg on each call
+ 2. in a GR, start the recursive treebuilding in `buildTree.go`
 
- 3. once treebuilding waitgroup is finished, send signal to gatherFilenamesComplete channel (to master wg GR and to search GR)
+ 3. once treebuilding is complete, close treebuilding channel and decrement master WG
 
- 4. for each member of search party, add to wg and start GR for searching line by line
+ 4. for each member of search party, start GR for searching line by line
     - grab a task from the queue (each task is a filename)
-    - create slice of results 
+    - create slice for each filename and populate with search results
     - if slice is not empty, send slice down results channel
-    - TODO: figure out how to stop all searchloops when treebuilding complete
-    - as each GR completes, decrement wg
+    - if tasklist is empty and treebuilding channel is closed, end search WG
 
-5. start GR to wait for completion of search loops. when all search loops have completed, send signal to master wg GR
+5. start GR to wait for completion of search WG. when all search loops have completed, close channel and decrement master WG
 
-6. 
+6. start GR for displaying results. when search channel is closed and results channel is empty, decrement master WG
+
+7. back in the main thread, we wait for the master WG to wrap up, then complete.
