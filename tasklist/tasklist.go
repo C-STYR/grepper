@@ -1,7 +1,5 @@
 package tasklist
 
-import "fmt"
-
 /*
 	This package will house the tasklist structure and provide a number of
 	methods for it.
@@ -24,18 +22,6 @@ func CreateTask(path string) Task {
 // add a task to the TL
 func (t *Tasklist) Enqueue(task Task) {
 	t.Tasks <- task
-}
-
-// grab the next task in line from the TL
-func (t *Tasklist) Dequeue() Task {
-	next := <-t.Tasks
-	return next
-}
-
-func (t *Tasklist) PrintTasks() {
-	for e := range t.Tasks {
-		fmt.Println(e)
-	}
 }
 
 // create a buffered TL

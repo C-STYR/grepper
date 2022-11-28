@@ -30,6 +30,7 @@ func SearchByLine(filepath string, searchTerm string) Results {
 
 	// we will return this object
 	results := make([]Result, 0)
+	
 	//initialize lines at 1
 	lineNum := 1
 	scanner := bufio.NewScanner(file)
